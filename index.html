@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Personal Savings App</title>
+  <style>
+    :root {
+      --bg:#071913;
+      --card:#0b2a1f;
+      --muted:#a9cfc0;
+      --text:#f4f9f6;
+      --accent:#9fd19b;
+      --accent-2:#66a16b;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background: linear-gradient(180deg,var(--bg), #022012 120%);
+      color:var(--text);
+      line-height:1.45;
+      min-height:100vh;
+    }
+    .wrap{max-width:1100px;margin:24px auto;padding:18px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent-2),var(--accent));display:flex;align-items:center;justify-content:center;color:#04220f;font-weight:900;font-size:18px}
+    h1{font-size:20px;margin:0}
+    .subtitle{color:var(--muted);font-size:13px}
+    .controls{display:flex;gap:8px;align-items:center}
+    .btn{
+      background:linear-gradient(90deg,var(--accent),var(--accent-2));
+      border:none;color:#04220f;padding:10px 12px;border-radius:10px;font-weight:800;cursor:pointer;
+    }
+    .small{font-size:13px;color:var(--muted)}
+    .card{background:var(--card);padding:16px;border-radius:14px;border:1px solid rgba(255,255,255,0.03)}
+    .grid{display:grid;grid-template-columns:1fr 380px;gap:18px}
+    label{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}
+    input,select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);outline:none}
+    .goals-list{display:flex;flex-direction:column;gap:12px}
+    .goal-item{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.02);background:linear-gradient(180deg,transparent,rgba(255,255,255,0.01))}
+    .goal-meta{flex:1}
+    .goal-title{font-weight:800}
+    .goal-sub{color:var(--muted);font-size:13px;margin-top:6px}
+    .progress{height:12px;background:rgba(255,255,255,0.03);border-radius:10px;overflow:hidden;margin-top:10px}
+    .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0%}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+
+    #modals{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:2000}
+    #modalBackdrop{position:absolute;inset:0;background:rgba(0,0,0,0.6)}
+    #modalCard{width:min(540px,96%);position:relative;z-index:2010}
+    #modalClose{position:absolute;right:12px;top:12px;background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer}
+    .sim-box{border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;margin-top:12px;background:rgba(255,255,255,0.02)}
+    .sim-msg{margin-top:10px;color:var(--accent-2);font-weight:bold;text-align:center}
+    .btn-secondary{
+      background:transparent;
+      border:1px solid var(--accent);
+      color:var(--accent);
+      padding:10px 12px;
+      border-radius:10px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .controls{
+      gap: 50px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo">GC</div>
+        <div>
+          <h1>Personal Savings</h1>
+          <div class="subtitle small"></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <label class="small">Currency</label>
+        <select id="currencySelect">
+          <option value="GHS">Ghana Cedis (GHS)</option>
+          <option value="USD">US Dollar (USD)</option>
+          <option value="EUR">Euro (EUR)</option>
+          <option value="GBP">Pound (GBP)</option>
+        </select>
+        <button class="btn-secondary" onclick="showWithdrawModal()">Withdraw</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section>
+        <div class="card">
+          <h3>New Goal</h3>
+          <form id="goalForm" onsubmit="event.preventDefault(); createGoal()">
+            <label>Title</label>
+            <input id="goalTitle" type="text" placeholder="e.g., Vacation" required>
+            <label>Target Amount</label>
+            <input id="goalTarget" type="number" min="0" step="0.01" placeholder="0.00" required>
+            <button class="btn" style="margin-top:10px">Create</button>
+          </form>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="card">
+          <h3>Your Goals</h3>
+          <div id="goalsList" class="goals-list"></div>
+        </div>
+      </section>
+
+      <aside>
+        <div class="card">
+          <h3>Overview by Currency</h3>
+          <div id="overviewList" class="small"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="modals">
+    <div id="modalBackdrop"></div>
+    <div id="modalCard" class="card">
+      <button id="modalClose">✕</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    let goals = JSON.parse(localStorage.getItem('ps_goals') || '[]');
+    let defaultCurrency = localStorage.getItem('ps_currency') || 'GHS';
+
+    const $ = s => document.querySelector(s);
+    const goalsList = $('#goalsList');
+    const overviewList = $('#overviewList');
+    const currencySelect = $('#currencySelect');
+    const modalRoot = $('#modals');
+    const modalBody = $('#modalBody');
+
+    currencySelect.value = defaultCurrency;
+    currencySelect.onchange = () => {
+      defaultCurrency = currencySelect.value;
+      localStorage.setItem('ps_currency', defaultCurrency);
+    };
+
+    function save() {
+      localStorage.setItem('ps_goals', JSON.stringify(goals));
+    }
+
+    function fmt(v, cur) {
+      const symbol = cur === 'GHS' ? 'GH₵ ' :
+                     cur === 'USD' ? '$ ' :
+                     cur === 'EUR' ? '€ ' :
+                     cur === 'GBP' ? '£ ' : '';
+      return symbol + Number(v).toLocaleString(undefined, {minimumFractionDigits:2});
+    }
+
+    function createGoal() {
+      const title = $('#goalTitle').value.trim();
+      const target = Number($('#goalTarget').value);
+      if (!title || !target) return alert('Enter title and target');
+      goals.push({ id: Date.now(), title, target, saved: 0, currency: defaultCurrency });
+      save(); render();
+      $('#goalForm').reset();
+    }
+
+    function openModal(html) {
+      modalBody.innerHTML = html;
+      modalRoot.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+    function closeModal() {
+      modalRoot.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    $('#modalClose').onclick = closeModal;
+    $('#modalBackdrop').onclick = closeModal;
+
+    function showDepositModal(id) {
+      const goal = goals.find(g => g.id === id);
+      const methods = goal.currency === 'GHS'
+        ? ['Mobile Money', 'Bank Card']
+        : ['Bank Card'];
+      const html = `
+        <h3>${goal.title} — Deposit</h3>
+        <div class="small">Currency: ${goal.currency}</div>
+        <label>Amount</label>
+        <input id="depAmt" type="number" min="0.01" step="0.01" placeholder="0.00">
+        <label>Method</label>
+        <select id="depMethod">${methods.map(m=>`<option>${m}</option>`).join('')}</select>
+        <div class="sim-box">
+          <button class="btn" id="simulateBtn"> Payment</button>
+          <div class="sim-msg" id="simMsg"></div>
+        </div>
+      `;
+      openModal(html);
+
+      $('#simulateBtn').onclick = () => {
+        const amt = Number($('#depAmt').value);
+        if (!amt || amt <= 0) return alert('Enter a valid amount');
+        const method = $('#depMethod').value;
+        const msg = $('#simMsg');
+        msg.textContent = 'Processing ' + method + ' payment...';
+        setTimeout(() => {
+          msg.textContent = `✅ ${method} payment of ${fmt(amt, goal.currency)} successful!`;
+          goal.saved += amt;
+          save(); render();
+        }, 1500);
+      };
+    }
+
+    function showWithdrawModal() {
+      if (goals.length === 0) return alert("No goals to withdraw from.");
+      const html = `
+        <h3>Withdraw Funds</h3>
+        <label>Select Goal</label>
+        <select id="withdrawGoal">
+          ${goals.map(g => `<option value="${g.id}">${g.title} (${g.currency})</option>`).join('')}
+        </select>
+        <label>Amount</label>
+        <input id="withdrawAmt" type="number" min="0.01" step="0.01" placeholder="0.00">
+        <div class="sim-box">
+          <button class="btn" id="withdrawBtn">Confirm Withdrawal</button>
+          <div class="sim-msg" id="withdrawMsg"></div>
+        </div>
+      `;
+      openModal(html);
+
+      $('#withdrawBtn').onclick = () => {
+        const goalId = Number($('#withdrawGoal').value);
+        const amt = Number($('#withdrawAmt').value);
+        const goal = goals.find(g => g.id === goalId);
+        const msg = $('#withdrawMsg');
+
+        if (!amt || amt <= 0) return alert("Enter a valid amount");
+        if (amt > goal.saved) return alert("Insufficient balance for this goal");
+
+        msg.textContent = "Processing withdrawal...";
+        setTimeout(() => {
+          goal.saved -= amt;
+          msg.textContent = `✅ Withdrawal of ${fmt(amt, goal.currency)} from "${goal.title}" successful!`;
+          save(); render();
+        }, 1200);
+      };
+    }
+
+    function renderOverview() {
+      const totals = {};
+      goals.forEach(g => {
+        totals[g.currency] = (totals[g.currency] || 0) + g.saved;
+      });
+      overviewList.innerHTML = '';
+      if (Object.keys(totals).length === 0) {
+        overviewList.innerHTML = '<div>No savings yet.</div>';
+      } else {
+        for (const [cur, val] of Object.entries(totals)) {
+          const div = document.createElement('div');
+          div.style.marginBottom = '6px';
+          div.textContent = fmt(val, cur);
+          overviewList.appendChild(div);
+        }
+      }
+    }
+
+    function render() {
+      goalsList.innerHTML = '';
+      if (goals.length === 0) {
+        goalsList.innerHTML = '<div class="small">No goals yet.</div>';
+      }
+      goals.forEach(g => {
+        const pct = Math.min(100, (g.saved / g.target) * 100);
+        const div = document.createElement('div');
+        div.className = 'goal-item';
+        div.innerHTML = `
+          <div class="goal-meta">
+            <div class="goal-title">${g.title} (${g.currency})</div>
+            <div class="goal-sub">${fmt(g.saved, g.currency)} saved of ${fmt(g.target, g.currency)}</div>
+            <div class="progress"><i style="width:${pct}%"></i></div>
+          </div>
+          <button class="btn" onclick="showDepositModal(${g.id})">Deposit</button>
+        `;
+        goalsList.appendChild(div);
+      });
+      renderOverview();
+    }
+
+    render();
+  </script>
+</body>
+</html>
